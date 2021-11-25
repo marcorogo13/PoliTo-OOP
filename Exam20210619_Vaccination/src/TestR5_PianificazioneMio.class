@@ -1,0 +1,83 @@
+// 
+// Decompiled by Procyon v0.5.36
+// 
+
+package it.polito.po.test;
+
+import java.util.stream.Stream;
+import java.util.stream.Collectors;
+import java.util.function.Function;
+import java.util.Collection;
+import java.util.Map;
+import org.junit.Test;
+import java.util.List;
+import org.junit.Assert;
+import org.junit.Before;
+import it.polito.oop.vaccination.VaccineException;
+import it.polito.oop.vaccination.Vaccines;
+
+public class TestR5_Pianificazione
+{
+    private Vaccines v;
+    
+    @Before
+    public void setUp() throws VaccineException {
+        TestUtils.generateAndAddPerson(20000, this.v = new Vaccines());
+        this.v.setAgeIntervals(new int[] { 30, 50, 60, 70 });
+        this.v.defineHub("Hub 1");
+        this.v.defineHub("Hub 2");
+        this.v.defineHub("Hub 3");
+        this.v.setStaff("Hub 1", 7, 6, 4);
+        this.v.setStaff("Hub 2", 4, 3, 2);
+        this.v.setStaff("Hub 3", 3, 3, 2);
+        this.v.setHours(new int[] { 8, 8, 8, 8, 8, 6, 4 });
+    }
+    
+    @Test
+    public void testAllocate() throws VaccineException {
+        final List<String> alloc = (List<String>)this.v.allocate("Hub 1", 1);
+        Assert.assertNotNull((Object)alloc);
+        Assert.assertEquals("wrong number of allocated people", 560L, (long)alloc.size());
+        final long n = alloc.stream().filter(p -> this.v.getAge(p) >= 70).count();
+        Assert.assertTrue("Wrong proportiono of 70+ people", n >= 268.8);
+    }
+    
+    @Test
+    public void testAllocateDetail() throws VaccineException {
+        final List<String> alloc = (List<String>)this.v.allocate("Hub 1", 1);
+        Assert.assertNotNull((Object)alloc);
+        final long n = alloc.stream().filter(p -> this.v.getAge(p) >= 70).count();
+        Assert.assertEquals("Wrong proportiono of 70+ people", 268.8, (double)n, 1.0);
+    }
+    
+    @Test
+    public void testClearAllocate() throws VaccineException {
+        final List<String> alloc1 = (List<String>)this.v.allocate("Hub 1", 1);
+        Assert.assertNotNull((Object)alloc1);
+        this.v.clearAllocation();
+        final List<String> alloc2 = (List<String>)this.v.allocate("Hub 1", 1);
+        Assert.assertNotNull((Object)alloc1);
+        Assert.assertEquals("After clear allocate the same people should be allocated", (Object)alloc1, (Object)alloc2);
+    }
+    
+    @Test
+    public void testAllocate2() throws VaccineException {
+        final List<String> alloc = (List<String>)this.v.allocate("Hub 2", 1);
+        Assert.assertNotNull((Object)alloc);
+        Assert.assertEquals("wrong number of allocated people", 288L, (long)alloc.size());
+    }
+    
+    @Test
+    public void testAllocateWeek() {
+        final List<Map<String, List<String>>> wp = (List<Map<String, List<String>>>)this.v.weekAllocate();
+        Assert.assertNotNull("Missing week allocations plan", (Object)wp);
+        Assert.assertEquals("Week plan should span a whole week", 7L, (long)wp.size());
+        final Map<Integer, Long> freqs = wp.stream().flatMap(dm -> dm.values().stream().flatMap(Collection::stream)).collect(Collectors.groupingBy((Function<? super Object, ? extends Integer>)this.v::getAge, Collectors.counting()));
+        final long allocated = freqs.values().stream().mapToLong(i -> i).sum();
+        Assert.assertEquals("Unallocated people", 6800L, allocated);
+        final double propOver70 = freqs.entrySet().stream().filter(e -> e.getKey() >= 70).mapToLong(e -> e.getValue()).sum() / (double)allocated;
+        Assert.assertEquals("Wrong proportion of over 70", 0.48, propOver70, 0.01);
+        final double propUnder30 = freqs.entrySet().stream().filter(e -> e.getKey() < 30).mapToLong(e -> e.getValue()).sum() / (double)allocated;
+        Assert.assertTrue("Too many under 30", propUnder30 < 0.1);
+    }
+}
